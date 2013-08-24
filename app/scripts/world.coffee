@@ -6,13 +6,14 @@ define [], () ->
     "use strict"
 
     class World
-        
+
         # The actual canvas element
         elt: null
 
         # Config
-        width: 16       # world width in tiles
+        width: 24       # world width in tiles
         height: 16      # world height in tiles
+        sprite: "images/tile_sand.png"
 
         # The size of the canvas in pixels
         canvasWidth: 0
@@ -23,10 +24,15 @@ define [], () ->
             @canvasWidth = x
             @canvasHeight = y
 
+            @elt = new Image()
+            @elt.src = @sprite
+
         # Render the world in the given context
         render: (ctx) ->
-            ctx.fillStyle = "#abcdef"
-            ctx.fillRect(0, 0, @canvasWidth, @canvasHeight)
+            # Render an image in every tile
+            for x in [0..@width]
+                for y in [0..@height]
+                    ctx.drawImage(@elt, @tileToPixelX(x), @tileToPixelY(y), @getTileWidth(), @getTileHeight())
 
         # Converts a tile coords to pixel coords
         tileToPixelX: (x) ->
