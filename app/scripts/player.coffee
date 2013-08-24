@@ -14,7 +14,7 @@ define [], () ->
         sprite: "images/character2.png"
         spriteWidth: 32
         spriteHeight: 32
-        speed: 100
+        speed: 4              # body lengths/sec
         buffer: 3
 
         # Moving parameters
@@ -60,11 +60,11 @@ define [], () ->
                   if ((pxXNew >= @movingToX - @buffer) && (pxXNew <= @movingToX + @buffer))
                       @pxX = @movingToX
                   else
-                      @pxX += Math.round(dirX * dt * @speed)
+                      @pxX += Math.round(dirX * dt * @speed * @spriteWidth)
                   if ((pxYNew >= @movingToY - @buffer) && (pxYNew <= @movingToY + @buffer))
                       @pxY = @movingToY
                   else
-                      @pxY += Math.round(dirY * dt * @speed)
+                      @pxY += Math.round(dirY * dt * @speed * @spriteHeight)
 
             # Draw the player
             sprite = @getSpritePos()

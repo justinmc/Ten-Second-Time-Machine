@@ -11,8 +11,8 @@ define [], () ->
         elt: null
 
         # Config
-        width: 24       # world width in tiles
-        height: 16      # world height in tiles
+        width: 18       # world width in tiles
+        height: 12      # world height in tiles
         sprite: "images/tile_sand.png"
 
         # The size of the canvas in pixels
