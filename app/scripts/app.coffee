@@ -17,8 +17,10 @@ define ["player", "world", "input"], (Player, World, input) ->
         # Assets
         world: null
         player: null
-
-        timeTraveled: false
+        bigKid1: null
+        bigKid2: null
+        bigKid1Actions: null
+        bigKid2Actions: null
 
         # History of time!
         Action: null
@@ -28,8 +30,14 @@ define ["player", "world", "input"], (Player, World, input) ->
         PastSelves: null
         pastSelves: null
 
+        # Intro animation
+        introActions: null
+
         # The time of the most recently completed render
         timeThen: null
+
+        # Is the game over?
+        won: false
 
         constructor: () ->
             # Set up the canvas
@@ -50,16 +58,53 @@ define ["player", "world", "input"], (Player, World, input) ->
             # Create world 1
             @world = new World(@canvas.width, @canvas.height)
 
-            # Create the player at his starting position
-            @player = new Player(@world.getTileWidth(), @world.getTileHeight(), @world.tileToPixelX(0), @world.tileToPixelY(1))
-            @player.x = 0
-            @player.y = 1
-
             # Create the history backbone objects
             @Action = Backbone.Model.extend()
             @Actions = Backbone.Collection.extend
                 model: @Action
             @actions = new @Actions()
+
+            # Create the player at his starting position
+            @player = new Player(@world.getTileWidth(), @world.getTileHeight(), @world.tileToPixelX(11), @world.tileToPixelY(10))
+            @player.x = 11
+            @player.y = 10
+
+            # Create big kid 1
+            @bigKid1 = new Player(@world.getTileWidth(), @world.getTileHeight(), @world.tileToPixelX(7), @world.tileToPixelY(4), "images/bigKid1.png")
+            @bigKid1.x = 7
+            @bigKid1.y = 4
+            @bigKid1Actions = new @Actions()
+            @bigKid1Actions.push new @Action
+                playerX: @bigKid1.x
+                playerY: -1
+            @bigKid1Actions.push new @Action
+                waitFor: 12
+            @bigKid1Actions.push new @Action
+                playerX: @bigKid1.x
+                playerY: 1
+            @bigKid1Actions.push new @Action
+                waitFor: 8
+
+            # Create big kid 2
+            @bigKid2 = new Player(@world.getTileWidth(), @world.getTileHeight(), @world.tileToPixelX(8), @world.tileToPixelY(4), "images/bigKid2.png")
+            @bigKid2.x = 8
+            @bigKid2.y = 4
+            @bigKid2Actions = new @Actions()
+            @bigKid2Actions.push new @Action
+                playerX: 7
+                playerY: -1
+            @bigKid2Actions.push new @Action
+                waitFor: 6
+            @bigKid2Actions.push new @Action
+                playerX: 7
+                playerY: 1
+            @bigKid2Actions.push new @Action
+                waitFor: 6
+            @bigKid2Actions.push new @Action
+                playerX: @bigKid2.x
+                playerY: 1
+            @bigKid2Actions.push new @Action
+                waitFor: 12
 
             # Create the old selfs backbone object
             @PastSelf = Backbone.Model.extend()
@@ -98,12 +143,22 @@ define ["player", "world", "input"], (Player, World, input) ->
                 if (input.isDown("SPACE"))
                     me.timeTravel(timeNow, timeNow)
 
+                # Check if the player is on the backpack
+                if !me.player.hasBackpack and me.world.isBackpack(me.player.x, me.player.y) and !me.world.textQueue.length
+                    me.backpackGet()
+
+                # Check if the player has escaped
+                if me.player.y < 0 and !me.player.moving
+                    me.win = true
+                    me.world.win()
+
                 # Render
                 me.render(timeNow, dt)
 
                 # Continue the loop
-                me.timeThen = timeNow
-                requestAnimationFrame(me.mainFactory())
+                if !me.win
+                    me.timeThen = timeNow
+                    requestAnimationFrame(me.mainFactory())
 
         # Render the scene on the canvas
         render: (timeNow, dt) ->
@@ -113,8 +168,9 @@ define ["player", "world", "input"], (Player, World, input) ->
             # Render the background
             @world.render(@ctx, timeNow)
 
-            # Render the player
-            @player.render(@ctx, dt, timeNow)
+            # Render npcs
+            @renderNPC(@bigKid1, @bigKid1Actions, timeNow, dt)
+            @renderNPC(@bigKid2, @bigKid2Actions, timeNow, dt)
 
             # Render any past selves
             me = @
@@ -138,10 +194,22 @@ define ["player", "world", "input"], (Player, World, input) ->
                 else
                     player.render(me.ctx, dt, timeNow)
 
+            # Render the player
+            @player.render(@ctx, dt, timeNow)
+
+        # Render a non-player and non-pastSelf character
+        renderNPC: (player, actions, timeNow, dt) ->
+            if !player.moving and !player.waitingUntil? and actions.length
+                action = actions.pop()
+                if action.get("waitFor")?
+                    player.wait(timeNow + action.get("waitFor") * 1000)
+                else
+                    player.move(@world.tileToPixelX(action.get("playerX")), @world.tileToPixelY(action.get("playerY")))
+            player.render(@ctx, dt, timeNow)
+
         timeTravel: (timeNow) ->
-            # Can't time travel if nothing has happened
-            if @actions.length and !@timeTraveled
-                @timeTraveled = true
+            # Can't time travel if nothing has happened, or no time travel backpack, or pastSelves exist
+            if @actions.length and @player.hasBackpack and !@pastSelves.length
                 # Set the destination for 10 SECONDS ago
                 timeDest = timeNow - 10 * 1000
 
@@ -159,12 +227,14 @@ define ["player", "world", "input"], (Player, World, input) ->
                 actionDest = @actions.at(indexNearest)
 
                 # Create a past self
+                player = new Player(@world.getTileWidth(), @world.getTileHeight(), @world.tileToPixelX(actionDest.get("playerX")), @world.tileToPixelY(actionDest.get("playerY")), "images/characterPast.png")
+                player.x = actionDest.get("playerX")
+                player.y = actionDest.get("playerY")
                 pastSelf = new @PastSelf
-                    player: new Player(@world.getTileWidth(), @world.getTileHeight())
+                    player: player
                     actionIdNext: indexNearest + 1
                     timeRecreated: timeNow
                     timeDest: timeDest
-                pastSelf.get("player").reset(@world.tileToPixelX(actionDest.get("playerX")), @world.tileToPixelY(actionDest.get("playerY")), actionDest.get("playerX"), actionDest.get("playerY"))
                 @pastSelves.add(pastSelf)
 
                 # Add this to history
@@ -192,6 +262,14 @@ define ["player", "world", "input"], (Player, World, input) ->
 
                 # Write this new state to history
                 @writeHistory(timeNow, @player.x, @player.y)
+
+        # Pickup the backpack!
+        backpackGet: () ->
+            # Remove the backpack from the world
+            @world.removeBackpack()
+
+            # Give the player the backpack
+            @player.hasBackpack = true
 
         # Returns true if a past self exists at the given location, false otherwise
         isPastSelfAt: (x, y) ->

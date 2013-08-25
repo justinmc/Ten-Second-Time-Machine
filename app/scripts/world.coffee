@@ -16,7 +16,7 @@ define [], () ->
         textHeight: 64   # height of text bar in pixels
         fontFamily: "Press Start 2P"
         fontSize: 16
-        sprite: "images/tile_sand.png"
+        sprite: "images/tiles.png"
         spriteWidth: 32
         spriteHeight: 32
 
@@ -24,7 +24,7 @@ define [], () ->
         canvasWidth: 0
         canvasHeight: 0
 
-        # Tile backbone containers
+        # Tiles
         Tile: null
         Tiles: null
         tilesActive: null
@@ -32,20 +32,27 @@ define [], () ->
         # World 1
         world1: null
 
-        # Intro content
-        introTextCurrent: ""
-        introText: [
+        # Text paramaters
+        textCurrent: ""
+        textQueue: [
             "*Our hero, playing in the sand...*"
-            "Big kid 1: This playground sucks!  Let's go to our secret hideout, big kid 2!"
-            "Big kid 2: Our secret hideout is the coolest."
-            "Big kid 1: Alright, boost me over the wall!"
+            "Big Kid 1: This playground sucks!  Let's go to our secret hideout, Big Kid 2!"
+            "Big Kid 2: Our secret hideout is the coolest."
+            "Big Kid 1: Alright, boost me over the wall!"
             "Hero: Hey, you guys have a secret hideout?"
-            "Big kid 2: So long!"
-            "Hero: ..."
-            ""
+            "Big Kid 2: So long!"
+            "Hero: ...Who's going to boost me over?"
+            "Use the <arrow keys> to move"
         ]
-        introInterval: 4
-        introTimePlay: null
+        textBackpackGet: [
+            "Hero: Hey, my portable 10 second time machine backpack!"
+            "Hero: Not quite as practical as a ladder..."
+            "Hero: Or as practical as a regular time machine..."
+            "Hero: But I think it might work!"
+            "Press <space> to use"
+        ]
+        textInterval: 4
+        textTimePlay: null
 
         # Create the world at the given size in pixels
         constructor: (x, y) ->
@@ -65,10 +72,14 @@ define [], () ->
                     spritePos = @getSpritePos()
                     walkable = true
                     climbable = false
+                    backpack = false
                     if (y == 0)
                         spritePos = @getSpritePosFence()
                         walkable = false
                         climbable = true
+                    if (x == 10 and y == 10)
+                        spritePos = @getSpritePosBackpack()
+                        backpack = true
                     tile = new @Tile
                         x: x
                         y: y
@@ -76,6 +87,7 @@ define [], () ->
                         spriteY: spritePos.y
                         walkable: walkable
                         climbable: climbable
+                        backpack: backpack
 
                     @world1.add(tile)
 
@@ -93,13 +105,13 @@ define [], () ->
                 ctx.drawImage(me.elt, tile.get("spriteX"), tile.get("spriteY"), me.spriteWidth, me.spriteHeight, me.tileToPixelX(tile.get("x")), me.tileToPixelY(tile.get("y")), me.getTileWidth(), me.getTileHeight())
 
             # Render the text at the bottom
-            if !@introTimePlay? and @introText.length
-                @introTimePlay = timeNow
-            else if @introText.length and (timeNow - @introTimePlay) / 1000 >= @introInterval
-                @introTextCurrent = @introText.splice(0, 1)
-                @introTimePlay = timeNow
             ctx.font = @fontSize + "px '" + @fontFamily + "'"
-            ctx.fillText(@introTextCurrent, 0, @canvasHeight - @textHeight + @fontSize)
+            if !@textTimePlay? and @textQueue.length
+                @textTimePlay = timeNow
+            else if @textQueue.length and (timeNow - @textTimePlay) / 1000 >= @textInterval
+                @textCurrent = @textQueue.splice(0, 1)
+                @textTimePlay = timeNow
+            ctx.fillText(@textCurrent, 0, @canvasHeight - @textHeight + @fontSize, @canvasWidth)
 
         # Returns true if the given tile for the current world is walkable, false otherwise
         isWalkable: (x, y) ->
@@ -117,6 +129,29 @@ define [], () ->
             else
                 return false
 
+        # Returns true if the given tile for the current world is the backpack, false otherwise
+        isBackpack: (x, y) ->
+            tile = @tilesActive.findWhere({"x": x, "y": y})
+            if tile?
+                return tile.get("backpack")
+            else
+                return false
+
+        # Removes the backpack from the world, as when it is picked up
+        removeBackpack: () ->
+            tile = @world1.findWhere({"backpack": true})
+            spritePos = @getSpritePos()
+            tile.set("backpack", false)
+            tile.set("spriteX", spritePos.x)
+            tile.set("spriteY", spritePos.y)
+
+            # Show the backpack get text
+            @textQueue = @textBackpackGet
+
+        # Show the win text
+        win: () ->
+            @textCurrent = "YOU WIN!!!"
+
         # Converts a tile coords to pixel coords
         tileToPixelX: (x) ->
             if (x < 0)
@@ -125,7 +160,7 @@ define [], () ->
                 x = @width - 1
             return Math.floor(x * @getTileWidth())
         tileToPixelY: (y) ->
-            if (y < 0)
+            if (y <= -1)
                 y = -1
             if (y >= @height)
                 y = @heigth - 1
@@ -149,5 +184,12 @@ define [], () ->
             pos =
                 x: 0
                 y: @spriteHeight
+            return pos
+
+        # Get the backpack sprite dimensions
+        getSpritePosBackpack: () ->
+            pos =
+                x: @spriteWidth
+                y: 0
             return pos
 
