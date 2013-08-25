@@ -22,6 +22,11 @@ define [], () ->
         movingToX: null
         movingToY: null
 
+        # Time travel parameters
+        timeTravelling: null
+        timeAnimLength: 0.5
+        timeAnimFrames: 7
+
         # The location and size of the player
         x: 0
         y: 0
@@ -30,17 +35,19 @@ define [], () ->
         width: 0
         height: 0
 
-        constructor: (width, height) ->
+        constructor: (width, height, startPxX, startPxY) ->
             # Set the given parameters
             @width = width
             @height = height
+            @pxX = startPxX
+            @pxY = startPxY
 
             # Create the canvas element
             @elt = new Image()
             @elt.src = @sprite
 
         # Render the player at the given location in the given context
-        render: (ctx, dt) ->
+        render: (ctx, dt, timeNow) ->
             # Move the player first if moving
             if (@moving)
               # Has the player arrived?
@@ -67,14 +74,18 @@ define [], () ->
                       @pxY += Math.round(dirY * dt * @speed * @spriteHeight)
 
             # Draw the player
-            sprite = @getSpritePos()
-            ctx.drawImage(@elt, sprite.x, sprite.y, @spriteWidth, @spriteHeight, @pxX, @pxY, @width, @height)
+            spritePos = @getSpritePos(timeNow)
+            ctx.drawImage(@elt, spritePos.x, spritePos.y, @spriteWidth, @spriteHeight, @pxX, @pxY, @width, @height)
 
         # Tell the player to move to a point in pixels
         move: (x, y) ->
             @moving = true
             @movingToX = x
             @movingToY = y
+
+        # Tell the player to animate a time travel
+        timeTravel: (time) ->
+            @timeTravelling = time
 
         # Returns the direction currently moving along each axis
         # 1, -1, or 0
@@ -98,30 +109,58 @@ define [], () ->
                 return 0
 
         # Get the sprite dimensions
-        getSpritePos: () ->
+        getSpritePos: (timeNow) ->
             # Default at-rest sprite
             pos =
                 x: 0
                 y: 0
 
-            if @moving
+            # If we're time travelling, animate that
+            if @timeTravelling?
+                dt = (timeNow - @timeTravelling) / 1000
+                # Frame 1
+                if dt / @timeAnimLength < 1 * @timeAnimLength / @timeAnimFrames
+                    pos.x = 0
+                    pos.y = @spriteHeight * 2
+                else if dt / @timeAnimLength < 2 * @timeAnimLength / @timeAnimFrames
+                    pos.x = @spriteWidth
+                    pos.y = @spriteHeight * 2
+                else if dt / @timeAnimLength < 3 * @timeAnimLength / @timeAnimFrames
+                    pos.x = @spriteWidth * 2
+                    pos.y = @spriteHeight * 2
+                else if dt / @timeAnimLength < 4 * @timeAnimLength / @timeAnimFrames
+                    pos.x = @spriteWidth * 3
+                    pos.y = @spriteHeight * 2
+                else if dt / @timeAnimLength < 5 * @timeAnimLength / @timeAnimFrames
+                    pos.x = @spriteWidth * 2
+                    pos.y = @spriteHeight * 2
+                else if dt / @timeAnimLength < 6 * @timeAnimLength / @timeAnimFrames
+                    pos.x = @spriteWidth
+                    pos.y = @spriteHeight * 2
+                else if dt / @timeAnimLength < 7 * @timeAnimLength / @timeAnimFrames
+                    pos.x = 0
+                    pos.y = @spriteHeight * 2
+                else
+                    @timeTravelling = null
+            # Otherwise, animate a move
+            else if @moving
                 dirX = @getMovingDirX()
                 dirY = @getMovingDirY()
                 # If moving up
-                if (dirY == 1)
-                    pos.x = 0
-                    pos.y = 0
+                if (dirY == -1)
+                    pos.x = @spriteWidth
+                    pos.y = @spriteHeight
                 # Moving down
-                else if (dirY == -1)
-                    pos.x = 1 * @spriteWidth
-                    pos.y = 0
+                else if (dirY == 1)
+                    pos.x = 0
+                    pos.y = @spriteHeight
                 # If moving left
                 if (dirX == -1)
-                    pos.x = 0
-                    pos.y = 1 * @spriteHeight
+                    pos.x = @spriteWidth * 2
+                    pos.y = @spriteHeight
                 else if (dirX == 1)
-                    pos.x = 1 * @spriteWidth
-                    pos.y = 1 * @spriteHeight
+                    pos.x = @spriteWidth * 3
+                    pos.y = @spriteHeight
 
             return pos
 

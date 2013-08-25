@@ -47,9 +47,13 @@ define ["player", "world", "input"], (Player, World, input) ->
             @canvas.width = width
             @canvas.height = height
 
-            # Create assets
+            # Create world 1
             @world = new World(@canvas.width, @canvas.height)
-            @player = new Player(@world.getTileWidth(), @world.getTileHeight())
+
+            # Create the player at his starting position
+            @player = new Player(@world.getTileWidth(), @world.getTileHeight(), @world.tileToPixelX(0), @world.tileToPixelY(1))
+            @player.x = 0
+            @player.y = 1
 
             # Create the history backbone objects
             @Action = Backbone.Model.extend()
@@ -107,10 +111,10 @@ define ["player", "world", "input"], (Player, World, input) ->
             @canvas.width = @canvas.width
 
             # Render the background
-            @world.render(@ctx)
+            @world.render(@ctx, timeNow)
 
             # Render the player
-            @player.render(@ctx, dt)
+            @player.render(@ctx, dt, timeNow)
 
             # Render any past selves
             me = @
@@ -132,7 +136,7 @@ define ["player", "world", "input"], (Player, World, input) ->
                         pastSelf.set("actionIdNext", pastSelf.get("actionIdNext") + 1)
                 # Otherwise keep the pastSelf where it is
                 else
-                    player.render(me.ctx, dt)
+                    player.render(me.ctx, dt, timeNow)
 
         timeTravel: (timeNow) ->
             # Can't time travel if nothing has happened
@@ -144,7 +148,7 @@ define ["player", "world", "input"], (Player, World, input) ->
                 # Find the nearest saved history
                 timeDiffNearest = Infinity
                 indexNearest = 0
-                for i in [0..@actions.length]
+                for i in [0..@actions.length - 1]
                     action = @actions.at(i)
                     timeDiff = Math.abs(action.get("time") - timeDest)
                     if timeDiff < timeDiffNearest
@@ -166,15 +170,37 @@ define ["player", "world", "input"], (Player, World, input) ->
                 # Add this to history
                 @writeHistory(timeNow, @player.x, @player.y, true)
 
+                # Tell the player to time travel
+                @player.timeTravel(timeNow)
+
         # Tell the player to move to the given position
         movePlayer: (x = 0, y = 0, timeNow) ->
             if (!@player.moving)
-                @player.x += x
-                @player.y += y
-                @player.move(@world.tileToPixelX(@player.x), @world.tileToPixelY(@player.y))
+                playerXNew = @player.x + x
+                playerYNew = @player.y + y
+
+                # For a climb move
+                if (@world.isClimbable(playerXNew, playerYNew) && @isPastSelfAt(@player.x, @player.y))
+                    @player.x = playerXNew + x
+                    @player.y = playerYNew + y
+                    @player.move(@world.tileToPixelX(@player.x), @world.tileToPixelY(@player.y))
+                # For a regular walk move
+                else if @world.isWalkable(playerXNew, playerYNew)
+                    @player.x = playerXNew
+                    @player.y = playerYNew
+                    @player.move(@world.tileToPixelX(@player.x), @world.tileToPixelY(@player.y))
 
                 # Write this new state to history
                 @writeHistory(timeNow, @player.x, @player.y)
+
+        # Returns true if a past self exists at the given location, false otherwise
+        isPastSelfAt: (x, y) ->
+            exists = false
+            @pastSelves.forEach (pastSelf) ->
+                player = pastSelf.get("player")
+                if player.x == x and player.y == y
+                    exists = true
+            return exists
 
         writeHistory: (timeNow, playerX, playerY, timeTravel = false) ->
             action = new @Action
